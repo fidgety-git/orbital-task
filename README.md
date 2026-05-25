@@ -63,6 +63,7 @@ We've included sample legal documents in `sample-docs/` for testing.
 - `just reset` — Stop everything and clear database
 - `just check` — Run all linters and type checks
 - `just fmt` — Format all code
+- `just test` — Run backend (pytest) and frontend (vitest) tests
 - `just db-init` — Run database migrations
 - `just db-shell` — Open a psql shell
 - `just shell-backend` — Shell into backend container
