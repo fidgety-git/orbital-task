@@ -40,9 +40,7 @@ async def get_conversation(session: AsyncSession, conversation_id: str) -> Conve
     return result.scalar_one_or_none()
 
 
-async def mark_conversation_updated(
-    session: AsyncSession, conversation_id: str
-) -> None:
+async def mark_conversation_updated(session: AsyncSession, conversation_id: str) -> None:
     """Mark a conversation as recently active for sidebar ordering."""
     conversation = await session.get(Conversation, conversation_id)
     if conversation is not None:

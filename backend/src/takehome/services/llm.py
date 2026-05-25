@@ -52,9 +52,7 @@ async def chat_with_document(
     if documents:
         prompt_parts.append("The following documents are available for this conversation:\n")
         for filename, text in documents:
-            prompt_parts.append(
-                f'<document filename="{filename}">\n{text}\n</document>\n'
-            )
+            prompt_parts.append(f'<document filename="{filename}">\n{text}\n</document>\n')
     else:
         prompt_parts.append(
             "No document has been uploaded yet. If the user asks about a document, "

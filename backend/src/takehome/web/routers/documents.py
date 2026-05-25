@@ -54,9 +54,7 @@ async def upload_document_endpoint(
                 "code": "duplicate_filename",
                 "filename": e.filename,
                 "existing_document_id": e.existing_document_id,
-                "message": (
-                    f'A document named "{e.filename}" is already in this conversation.'
-                ),
+                "message": (f'A document named "{e.filename}" is already in this conversation.'),
             },
         ) from e
     except ValueError as e:
