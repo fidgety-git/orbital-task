@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -38,6 +40,15 @@ async def get_conversation(session: AsyncSession, conversation_id: str) -> Conve
     return result.scalar_one_or_none()
 
 
+async def mark_conversation_updated(
+    session: AsyncSession, conversation_id: str
+) -> None:
+    """Mark a conversation as recently active for sidebar ordering."""
+    conversation = await session.get(Conversation, conversation_id)
+    if conversation is not None:
+        conversation.updated_at = datetime.now(UTC).replace(tzinfo=None)
+
+
 async def update_conversation(
     session: AsyncSession, conversation_id: str, title: str
 ) -> Conversation | None:
@@ -46,6 +57,7 @@ async def update_conversation(
     if conversation is None:
         return None
     conversation.title = title
+    mark_conversation_updated(session, conversation_id)
     await session.commit()
     await session.refresh(conversation)
     return conversation

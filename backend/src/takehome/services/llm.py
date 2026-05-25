@@ -14,10 +14,12 @@ agent = Agent(
         "You help lawyers review and understand documents during due diligence.\n\n"
         "IMPORTANT INSTRUCTIONS:\n"
         "- Answer questions based on the document content provided.\n"
-        "- When referencing specific parts of the document, cite the relevant section or clause.\n"
+        "- When referencing specific parts of a document, cite the relevant section or clause.\n"
         "- If the answer is not in the document, say so clearly. Do not fabricate information.\n"
         "- Be concise and precise. Lawyers value accuracy over verbosity.\n"
-        "- When you reference specific content, mention the section, clause, or page."
+        "- When you reference specific content, mention the section, clause, or page.\n"
+        "- Multiple documents may be provided. Use all of them unless the question clearly targets specific files.\n"
+        "- If specific files are referenced, use only them and ignore the others."
     ),
 )
 
@@ -37,7 +39,7 @@ async def generate_title(user_message: str) -> str:
 
 async def chat_with_document(
     user_message: str,
-    document_text: str | None,
+    documents: list[tuple[str, str]],
     conversation_history: list[dict[str, str]],
 ) -> AsyncIterator[str]:
     """Stream a response to the user's message, yielding text chunks.
@@ -45,24 +47,20 @@ async def chat_with_document(
     Builds a prompt that includes document context and conversation history,
     then streams the response from the LLM.
     """
-    # Build the full prompt with context
     prompt_parts: list[str] = []
 
-    # Add document context if available
-    if document_text:
-        prompt_parts.append(
-            "The following is the content of the document being discussed:\n\n"
-            "<document>\n"
-            f"{document_text}\n"
-            "</document>\n"
-        )
+    if documents:
+        prompt_parts.append("The following documents are available for this conversation:\n")
+        for filename, text in documents:
+            prompt_parts.append(
+                f'<document filename="{filename}">\n{text}\n</document>\n'
+            )
     else:
         prompt_parts.append(
             "No document has been uploaded yet. If the user asks about a document, "
             "let them know they need to upload one first.\n"
         )
 
-    # Add conversation history
     if conversation_history:
         prompt_parts.append("Previous conversation:\n")
         for msg in conversation_history:
@@ -74,7 +72,6 @@ async def chat_with_document(
                 prompt_parts.append(f"Assistant: {content}\n")
         prompt_parts.append("\n")
 
-    # Add the current user message
     prompt_parts.append(f"User: {user_message}")
 
     full_prompt = "\n".join(prompt_parts)

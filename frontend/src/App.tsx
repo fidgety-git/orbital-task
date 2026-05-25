@@ -4,7 +4,7 @@ import { ChatWindow } from "./components/ChatWindow";
 import { DocumentViewer } from "./components/DocumentViewer";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { useConversations } from "./hooks/use-conversations";
-import { useDocument } from "./hooks/use-document";
+import { useDocuments } from "./hooks/use-documents";
 import { useMessages } from "./hooks/use-messages";
 
 export default function App() {
@@ -28,10 +28,14 @@ export default function App() {
 	} = useMessages(selectedId);
 
 	const {
-		document,
+		documents,
+		selectedDocument,
+		uploading,
+		error: documentsError,
 		upload,
-		refresh: refreshDocument,
-	} = useDocument(selectedId);
+		selectDocument,
+		refresh: refreshDocuments,
+	} = useDocuments(selectedId);
 
 	const handleSend = useCallback(
 		async (content: string) => {
@@ -42,14 +46,14 @@ export default function App() {
 	);
 
 	const handleUpload = useCallback(
-		async (file: File) => {
-			const doc = await upload(file);
-			if (doc) {
-				refreshDocument();
+		async (files: File[]) => {
+			const uploaded = await upload(files);
+			if (uploaded) {
+				refreshDocuments();
 				refreshConversations();
 			}
 		},
-		[upload, refreshDocument, refreshConversations],
+		[upload, refreshDocuments, refreshConversations],
 	);
 
 	const handleCreate = useCallback(async () => {
@@ -71,16 +75,22 @@ export default function App() {
 				<ChatWindow
 					messages={messages}
 					loading={messagesLoading}
-					error={messagesError}
+					error={messagesError ?? documentsError}
 					streaming={streaming}
 					streamingContent={streamingContent}
-					hasDocument={!!document}
+					documents={documents}
+					uploading={uploading}
 					conversationId={selectedId}
 					onSend={handleSend}
 					onUpload={handleUpload}
+					onSelectDocument={selectDocument}
 				/>
 
-				<DocumentViewer document={document} />
+				<DocumentViewer
+					documents={documents}
+					selectedDocument={selectedDocument}
+					onSelectDocument={selectDocument}
+				/>
 			</div>
 		</TooltipProvider>
 	);

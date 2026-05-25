@@ -1,56 +1,98 @@
+import type { z } from "zod";
+import {
+	ConversationDetailResponseSchema,
+	ConversationListSchema,
+	DocumentSchema,
+	MessageListSchema,
+	conversationDetailFromResponse,
+	conversationFromDetail,
+	parseApiData,
+} from "./schemas";
 import type {
 	Conversation,
 	ConversationDetail,
 	Document,
 	Message,
-} from "../types";
+} from "./schemas";
 
 const BASE = "/api";
 
-async function handleResponse<T>(response: Response): Promise<T> {
-	if (!response.ok) {
-		const text = await response.text().catch(() => "Unknown error");
-		throw new Error(`API error ${response.status}: ${text}`);
+async function parseErrorResponse(response: Response): Promise<never> {
+	const text = await response.text().catch(() => "Unknown error");
+
+	try {
+		const payload = JSON.parse(text) as { detail?: string };
+		if (typeof payload.detail === "string") {
+			throw new Error(payload.detail);
+		}
+	} catch (error) {
+		if (error instanceof Error && !error.message.startsWith("API error")) {
+			throw error;
+		}
 	}
-	return response.json() as Promise<T>;
+
+	throw new Error(`API error ${response.status}: ${text}`);
+}
+
+async function handleJsonResponse<T>(
+	response: Response,
+	schema: z.ZodType<T>,
+	label: string,
+): Promise<T> {
+	if (!response.ok) {
+		await parseErrorResponse(response);
+	}
+	const data: unknown = await response.json();
+	return parseApiData(schema, data, label);
+}
+
+async function handleEmptyResponse(response: Response): Promise<void> {
+	if (!response.ok) {
+		await parseErrorResponse(response);
+	}
 }
 
 export async function fetchConversations(): Promise<Conversation[]> {
 	const res = await fetch(`${BASE}/conversations`);
-	return handleResponse<Conversation[]>(res);
+	return handleJsonResponse(res, ConversationListSchema, "conversations");
 }
 
 export async function createConversation(): Promise<Conversation> {
 	const res = await fetch(`${BASE}/conversations`, {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ title: "New conversation" }),
 	});
-	return handleResponse<Conversation>(res);
+	const detail = await handleJsonResponse(
+		res,
+		ConversationDetailResponseSchema,
+		"conversation",
+	);
+	return conversationFromDetail(detail);
 }
 
 export async function deleteConversation(id: string): Promise<void> {
 	const res = await fetch(`${BASE}/conversations/${id}`, {
 		method: "DELETE",
 	});
-	if (!res.ok) {
-		const text = await res.text().catch(() => "Unknown error");
-		throw new Error(`API error ${res.status}: ${text}`);
-	}
+	await handleEmptyResponse(res);
 }
 
 export async function fetchConversation(
 	id: string,
 ): Promise<ConversationDetail> {
 	const res = await fetch(`${BASE}/conversations/${id}`);
-	return handleResponse<ConversationDetail>(res);
+	const detail = await handleJsonResponse(
+		res,
+		ConversationDetailResponseSchema,
+		"conversation",
+	);
+	return conversationDetailFromResponse(detail);
 }
 
 export async function fetchMessages(
 	conversationId: string,
 ): Promise<Message[]> {
 	const res = await fetch(`${BASE}/conversations/${conversationId}/messages`);
-	return handleResponse<Message[]>(res);
+	return handleJsonResponse(res, MessageListSchema, "messages");
 }
 
 export async function sendMessage(
@@ -63,8 +105,7 @@ export async function sendMessage(
 		body: JSON.stringify({ content }),
 	});
 	if (!res.ok) {
-		const text = await res.text().catch(() => "Unknown error");
-		throw new Error(`API error ${res.status}: ${text}`);
+		await parseErrorResponse(res);
 	}
 	return res;
 }
@@ -79,7 +120,7 @@ export async function uploadDocument(
 		method: "POST",
 		body: formData,
 	});
-	return handleResponse<Document>(res);
+	return handleJsonResponse(res, DocumentSchema, "document");
 }
 
 export function getDocumentUrl(documentId: string): string {

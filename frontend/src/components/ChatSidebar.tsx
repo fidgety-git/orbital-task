@@ -79,6 +79,13 @@ export function ChatSidebar({
 										</p>
 										<p className="mt-0.5 text-xs text-neutral-400">
 											{relativeTime(conversation.updated_at)}
+											{conversation.document_count > 0 && (
+												<span className="text-neutral-400">
+													{" "}
+													· {conversation.document_count}{" "}
+													{conversation.document_count === 1 ? "doc" : "docs"}
+												</span>
+											)}
 										</p>
 									</div>
 

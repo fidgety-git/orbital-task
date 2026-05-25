@@ -13,8 +13,12 @@ from starlette.responses import StreamingResponse
 
 from takehome.db.models import Message
 from takehome.db.session import get_session
-from takehome.services.conversation import get_conversation, update_conversation
-from takehome.services.document import get_document_for_conversation
+from takehome.services.conversation import (
+    get_conversation,
+    mark_conversation_updated,
+    update_conversation,
+)
+from takehome.services.document import get_documents_for_conversation
 from takehome.services.llm import chat_with_document, count_sources_cited, generate_title
 
 logger = structlog.get_logger()
@@ -101,14 +105,16 @@ async def send_message(
         content=body.content,
     )
     session.add(user_message)
+    await mark_conversation_updated(session, conversation_id)
     await session.commit()
     await session.refresh(user_message)
 
     logger.info("User message saved", conversation_id=conversation_id, message_id=user_message.id)
 
-    # Load document text for the conversation
-    document = await get_document_for_conversation(session, conversation_id)
-    document_text: str | None = document.extracted_text if document else None
+    documents = await get_documents_for_conversation(session, conversation_id)
+    document_context: list[tuple[str, str]] = [
+        (doc.filename, doc.extracted_text or "") for doc in documents
+    ]
 
     # Load conversation history (exclude the message we just saved, it will be the user_message param)
     stmt = (
@@ -135,7 +141,7 @@ async def send_message(
         try:
             async for chunk in chat_with_document(
                 user_message=body.content,
-                document_text=document_text,
+                documents=document_context,
                 conversation_history=conversation_history,
             ):
                 full_response += chunk

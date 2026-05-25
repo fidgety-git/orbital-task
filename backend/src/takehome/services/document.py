@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from takehome.config import settings
 from takehome.db.models import Document
+from takehome.services.conversation import mark_conversation_updated
 
 logger = structlog.get_logger()
 
@@ -23,13 +24,8 @@ async def upload_document(
     Validates the file is a PDF, saves it to disk, extracts text using PyMuPDF,
     and stores metadata in the database.
 
-    Raises ValueError if the conversation already has a document or the file is not a PDF.
+    Raises ValueError if the file is not a PDF or exceeds the size limit.
     """
-    # Check if conversation already has a document
-    existing = await get_document_for_conversation(session, conversation_id)
-    if existing is not None:
-        raise ValueError("Conversation already has a document. Only one document per conversation is allowed.")
-
     # Validate file type
     if file.content_type not in ("application/pdf", "application/x-pdf"):
         filename = file.filename or ""
@@ -45,7 +41,6 @@ async def upload_document(
             f"File too large. Maximum size is {settings.max_upload_size // (1024 * 1024)}MB."
         )
 
-    # Generate a unique filename to avoid collisions
     original_filename = file.filename or "document.pdf"
     unique_name = f"{uuid.uuid4().hex}_{original_filename}"
     file_path = os.path.join(settings.upload_dir, unique_name)
@@ -93,6 +88,7 @@ async def upload_document(
         page_count=page_count,
     )
     session.add(document)
+    await mark_conversation_updated(session, conversation_id)
     await session.commit()
     await session.refresh(document)
     return document
@@ -105,10 +101,14 @@ async def get_document(session: AsyncSession, document_id: str) -> Document | No
     return result.scalar_one_or_none()
 
 
-async def get_document_for_conversation(
+async def get_documents_for_conversation(
     session: AsyncSession, conversation_id: str
-) -> Document | None:
-    """Get the document for a conversation, if one exists."""
-    stmt = select(Document).where(Document.conversation_id == conversation_id)
+) -> list[Document]:
+    """Get all documents for a conversation, ordered by upload time."""
+    stmt = (
+        select(Document)
+        .where(Document.conversation_id == conversation_id)
+        .order_by(Document.uploaded_at.asc())
+    )
     result = await session.execute(stmt)
-    return result.scalar_one_or_none()
+    return list(result.scalars().all())
