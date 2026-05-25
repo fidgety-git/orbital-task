@@ -1,0 +1,302 @@
+{
+  "version": "1.0",
+  "description": "Golden-set evaluation for citation verification and trust_level scoring. Each case supplies mock document text and a simulated LLM response (including the <citations> block). Run with: just eval-citations",
+  "trust_levels": ["high", "partial", "unverified", "not_found"],
+  "documents": {
+    "lease": {
+      "id": "doc-lease-001",
+      "filename": "commercial-lease-100-bishopsgate.pdf",
+      "extracted_text": "--- Page 1 ---\nSection 1 — Definitions\n\n\"the Initial Rent\" means Eight Hundred and Fifty Thousand Pounds (£850,000) per annum exclusive of Value Added Tax;\n\n--- Page 2 ---\nSection 3 — Rent\n\n3.1 The Tenant shall pay to the Landlord the Initial Rent of Eight Hundred and Fifty Thousand Pounds (£850,000) per annum, without any deduction, counterclaim or set-off whatsoever, by equal quarterly payments in advance on the usual quarter days.\n\n--- Page 5 ---\nSection 8 — Break Clause\n\n8.1.1 The Tenant may determine this Lease on the fifth (5th) anniversary of the Term Commencement Date (being 1 January 2029) or the tenth (10th) anniversary of the Term Commencement Date (being 1 January 2034) (each a \"Break Date\") by serving written notice on the Landlord in accordance with clause 8.2.\n\n8.3.1 (c) the Tenant pays to the Landlord on or before the Break Date a sum equivalent to six (6) months' rent at the rate payable immediately before the Break Date (the \"Break Premium\"), such payment to be made by way of cleared funds.\n\n--- Page 3 ---\n\"the Permitted Use\" means use falling within Class E(g)(i) of the Town and Country Planning (Use Classes) Order 1987 (as amended), being use as offices;"
+    },
+    "title_report": {
+      "id": "doc-title-001",
+      "filename": "title-report-lot-7.pdf",
+      "extracted_text": "--- Page 1 ---\nOfficial Copy (Title) — Register\n\nTitle Number: LN782451\n\n--- Page 2 ---\nProperty Description\n\nThe land and buildings known as Lot 7, Victoria Park Estate, 42-48 Victoria Park Road, London E9 7HD, as shown edged with red on the title plan filed at the Land Registry.\n\n--- Page 3 ---\nPrice Paid / Value Stated\n\nThe price stated on the transfer dated 14 March 2019 was £4,250,000 (Four Million Two Hundred and Fifty Thousand Pounds).\n\n--- Page 4 ---\nRestrictive Covenants\n\n(i) Covenant not to use for industrial purposes: The property shall not at any time be used for any industrial, manufacturing or heavy commercial purpose.\n\n(iii) Covenant not to build above 4 storeys: No building or structure shall be erected on the property which exceeds four (4) storeys in height."
+    },
+    "environmental": {
+      "id": "doc-env-001",
+      "filename": "environmental-assessment-manchester.pdf",
+      "extracted_text": "--- Page 1 ---\nPhase I Environmental Site Assessment — 15-21 Deansgate, Manchester\n\nPrepared by Greenfield Environmental Consultants Ltd\n\n--- Page 6 ---\n6.5 Remediation Costs\n\n6.5.1 In the event that the Phase II investigation confirms the presence of significant contamination, remediation works are likely to be required prior to any redevelopment of the Site. Based on the nature and scale of potential contamination identified in this Phase I assessment, remediation costs are estimated in the range of £50,000 to £200,000 (exclusive of VAT), depending on the extent and severity of contamination.\n\n--- Page 7 ---\nDate: 15 January 2024\n\nThis report has been prepared by Greenfield Environmental Consultants Ltd for the sole use of Manchester Property Holdings Ltd."
+    }
+  },
+  "cases": [
+    {
+      "id": "high-rent-exact-excerpt",
+      "description": "Single citation with verbatim rent excerpt should fully verify.",
+      "tags": ["high", "single-doc", "exact-match"],
+      "document_refs": ["lease"],
+      "response": "The initial annual rent is £850,000 per annum exclusive of VAT.\n<citations>\n[{\"filename\": \"commercial-lease-100-bishopsgate.pdf\", \"page\": 2, \"excerpt\": \"Initial Rent of Eight Hundred and Fifty Thousand Pounds (£850,000) per annum\", \"label\": \"Section 3.1\"}]\n</citations>",
+      "expected": {
+        "trust_level": "high",
+        "verified_count": 1,
+        "citation_count": 1,
+        "citations": [
+          {
+            "filename": "commercial-lease-100-bishopsgate.pdf",
+            "page": 2,
+            "verified": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "high-break-dates",
+      "description": "Break clause dates cited from the correct page.",
+      "tags": ["high", "single-doc"],
+      "document_refs": ["lease"],
+      "response": "The tenant may break on 1 January 2029 or 1 January 2034.\n<citations>\n[{\"filename\": \"commercial-lease-100-bishopsgate.pdf\", \"page\": 5, \"excerpt\": \"1 January 2029) or the tenth (10th) anniversary of the Term Commencement Date (being 1 January 2034)\", \"label\": \"Section 8.1.1\"}]\n</citations>",
+      "expected": {
+        "trust_level": "high",
+        "verified_count": 1,
+        "citation_count": 1
+      }
+    },
+    {
+      "id": "high-page-fallback",
+      "description": "Wrong page hint but excerpt found on another page; resolved page should update.",
+      "tags": ["high", "page-resolution"],
+      "document_refs": ["environmental"],
+      "response": "Estimated remediation costs are £50,000 to £200,000 exclusive of VAT.\n<citations>\n[{\"filename\": \"environmental-assessment-manchester.pdf\", \"page\": 7, \"excerpt\": \"remediation costs are estimated in the range of £50,000 to £200,000\", \"label\": \"6.5.1\"}]\n</citations>",
+      "expected": {
+        "trust_level": "high",
+        "verified_count": 1,
+        "citation_count": 1,
+        "citations": [
+          {
+            "filename": "environmental-assessment-manchester.pdf",
+            "page": 6,
+            "verified": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "high-fuzzy-paraphrase",
+      "description": "Paraphrased excerpt should still verify via fuzzy matching.",
+      "tags": ["high", "fuzzy-match"],
+      "document_refs": ["environmental"],
+      "response": "Remediation is estimated at £50k–£200k excluding VAT.\n<citations>\n[{\"filename\": \"environmental-assessment-manchester.pdf\", \"page\": 6, \"excerpt\": \"Estimated remediation cost range of £50,000 to £200,000 exclusive of VAT\", \"label\": \"6.5.1\"}]\n</citations>",
+      "expected": {
+        "trust_level": "high",
+        "verified_count": 1,
+        "citation_count": 1
+      }
+    },
+    {
+      "id": "high-multi-doc-all-verified",
+      "description": "Cross-document answer with two verified citations.",
+      "tags": ["high", "multi-doc"],
+      "document_refs": ["lease", "title_report"],
+      "response": "Annual rent is £850,000 and the Lot 7 transfer price was £4,250,000.\n<citations>\n[{\"filename\": \"commercial-lease-100-bishopsgate.pdf\", \"page\": 2, \"excerpt\": \"£850,000) per annum\", \"label\": \"Rent\"}, {\"filename\": \"title-report-lot-7.pdf\", \"page\": 3, \"excerpt\": \"price stated on the transfer dated 14 March 2019 was £4,250,000\", \"label\": \"Price paid\"}]\n</citations>",
+      "expected": {
+        "trust_level": "high",
+        "verified_count": 2,
+        "citation_count": 2
+      }
+    },
+    {
+      "id": "high-break-premium",
+      "description": "Break premium clause verifies on lease page 5.",
+      "tags": ["high", "single-doc"],
+      "document_refs": ["lease"],
+      "response": "The break premium is six months' rent.\n<citations>\n[{\"filename\": \"commercial-lease-100-bishopsgate.pdf\", \"page\": 5, \"excerpt\": \"six (6) months' rent at the rate payable immediately before the Break Date\", \"label\": \"Section 8.3.1(c)\"}]\n</citations>",
+      "expected": {
+        "trust_level": "high",
+        "verified_count": 1,
+        "citation_count": 1
+      }
+    },
+    {
+      "id": "partial-one-verified-one-fabricated",
+      "description": "Mixed citations: one matches document text, one is fabricated.",
+      "tags": ["partial", "single-doc"],
+      "document_refs": ["lease"],
+      "response": "The lease includes rent and an indemnity cap.\n<citations>\n[{\"filename\": \"commercial-lease-100-bishopsgate.pdf\", \"page\": 2, \"excerpt\": \"£850,000) per annum\", \"label\": \"Rent\"}, {\"filename\": \"commercial-lease-100-bishopsgate.pdf\", \"page\": 2, \"excerpt\": \"Tenant indemnity capped at £1,000,000\", \"label\": \"Indemnity cap\"}]\n</citations>",
+      "expected": {
+        "trust_level": "partial",
+        "verified_count": 1,
+        "citation_count": 2
+      }
+    },
+    {
+      "id": "partial-cross-doc-mixed",
+      "description": "One cross-document citation verifies; the other cites wrong document content.",
+      "tags": ["partial", "multi-doc"],
+      "document_refs": ["lease", "title_report"],
+      "response": "Rent and covenants summary.\n<citations>\n[{\"filename\": \"commercial-lease-100-bishopsgate.pdf\", \"page\": 2, \"excerpt\": \"Initial Rent of Eight Hundred and Fifty Thousand Pounds\", \"label\": \"Rent\"}, {\"filename\": \"title-report-lot-7.pdf\", \"page\": 3, \"excerpt\": \"annual service charge of £125,000\", \"label\": \"Service charge\"}]\n</citations>",
+      "expected": {
+        "trust_level": "partial",
+        "verified_count": 1,
+        "citation_count": 2
+      }
+    },
+    {
+      "id": "partial-three-citations-two-verified",
+      "description": "Two of three citations verify.",
+      "tags": ["partial", "multi-doc"],
+      "document_refs": ["lease", "title_report", "environmental"],
+      "response": "Deal summary across lease, title and environmental reports.\n<citations>\n[{\"filename\": \"commercial-lease-100-bishopsgate.pdf\", \"page\": 5, \"excerpt\": \"Break Date\", \"label\": \"Break\"}, {\"filename\": \"title-report-lot-7.pdf\", \"page\": 4, \"excerpt\": \"not to build above 4 storeys\", \"label\": \"Covenant\"}, {\"filename\": \"environmental-assessment-manchester.pdf\", \"page\": 6, \"excerpt\": \"Phase III groundwater remediation completed in 2020\", \"label\": \"Phase III\"}]\n</citations>",
+      "expected": {
+        "trust_level": "partial",
+        "verified_count": 2,
+        "citation_count": 3
+      }
+    },
+    {
+      "id": "unverified-all-fabricated",
+      "description": "Citations present but none match document text.",
+      "tags": ["unverified", "single-doc"],
+      "document_refs": ["lease"],
+      "response": "The tenant has unlimited assignment rights.\n<citations>\n[{\"filename\": \"commercial-lease-100-bishopsgate.pdf\", \"page\": 2, \"excerpt\": \"Tenant may assign freely without landlord consent\", \"label\": \"Assignment\"}]\n</citations>",
+      "expected": {
+        "trust_level": "unverified",
+        "verified_count": 0,
+        "citation_count": 1
+      }
+    },
+    {
+      "id": "unverified-empty-citations-array",
+      "description": "Empty citations array with substantive answer.",
+      "tags": ["unverified", "missing-citations"],
+      "document_refs": ["lease"],
+      "response": "The initial rent is £850,000 per annum.\n<citations>\n[]\n</citations>",
+      "expected": {
+        "trust_level": "unverified",
+        "verified_count": 0,
+        "citation_count": 0
+      }
+    },
+    {
+      "id": "unverified-no-citations-block",
+      "description": "LLM omitted the citations block entirely.",
+      "tags": ["unverified", "missing-citations"],
+      "document_refs": ["lease"],
+      "response": "The initial rent is £850,000 per annum.",
+      "expected": {
+        "trust_level": "unverified",
+        "verified_count": 0,
+        "citation_count": 0
+      }
+    },
+    {
+      "id": "unverified-wrong-filename",
+      "description": "Citation filename does not match any uploaded document.",
+      "tags": ["unverified", "filename-resolution"],
+      "document_refs": ["lease"],
+      "response": "The rent is £850,000.\n<citations>\n[{\"filename\": \"old-lease-draft.pdf\", \"page\": 2, \"excerpt\": \"£850,000) per annum\", \"label\": \"Rent\"}]\n</citations>",
+      "expected": {
+        "trust_level": "unverified",
+        "verified_count": 0,
+        "citation_count": 1
+      }
+    },
+    {
+      "id": "unverified-invalid-citations-json",
+      "description": "Malformed JSON in citations block parses to zero citations.",
+      "tags": ["unverified", "parse-error"],
+      "document_refs": ["lease"],
+      "response": "The initial rent is £850,000 per annum.\n<citations>\nnot valid json\n</citations>",
+      "expected": {
+        "trust_level": "unverified",
+        "verified_count": 0,
+        "citation_count": 0
+      }
+    },
+    {
+      "id": "unverified-paraphrase-too-loose",
+      "description": "Excerpt too far from source text to pass fuzzy threshold.",
+      "tags": ["unverified", "fuzzy-match"],
+      "document_refs": ["lease"],
+      "response": "Offices are the permitted use.\n<citations>\n[{\"filename\": \"commercial-lease-100-bishopsgate.pdf\", \"page\": 3, \"excerpt\": \"retail and restaurant use permitted at the premises\", \"label\": \"Permitted use\"}]\n</citations>",
+      "expected": {
+        "trust_level": "unverified",
+        "verified_count": 0,
+        "citation_count": 1
+      }
+    },
+    {
+      "id": "not-found-standard-abstention",
+      "description": "Required abstention phrase triggers not_found even without citations.",
+      "tags": ["not_found", "abstention"],
+      "document_refs": ["lease"],
+      "response": "This information is not found in the uploaded documents.",
+      "expected": {
+        "trust_level": "not_found",
+        "verified_count": 0,
+        "citation_count": 0
+      }
+    },
+    {
+      "id": "not-found-alternate-phrasing",
+      "description": "Alternate abstention wording still maps to not_found.",
+      "tags": ["not_found", "abstention"],
+      "document_refs": ["lease", "title_report"],
+      "response": "The current market value of the property does not appear in the uploaded documents.",
+      "expected": {
+        "trust_level": "not_found",
+        "verified_count": 0,
+        "citation_count": 0
+      }
+    },
+    {
+      "id": "partial-multi-part-no-citations-block",
+      "description": "Numbered multi-part answer with abstention for one item but no citations JSON still scores partial.",
+      "tags": ["partial", "mixed-answer", "missing-citations"],
+      "document_refs": ["lease", "title_report"],
+      "response": "I can provide citations for the first two items, but the third item is not found in the title report.\n\n**1. Initial Rent from the Lease**\nThe Initial Rent is Eight Hundred and Fifty Thousand Pounds (£850,000) per annum.\n\n**2. Lot 7 Transfer Price from the Title Report**\nThe price stated on the transfer dated 14 March 2019 was £4,250,000.\n\n**3. Annual Service Charge from the Title Report**\nThis information is not found in the uploaded documents.",
+      "expected": {
+        "trust_level": "partial",
+        "verified_count": 0,
+        "citation_count": 0
+      }
+    },
+    {
+      "id": "partial-abstention-language-with-verified-citations",
+      "description": "Mixed answer mentioning a missing fact scores partial even when all citations verify.",
+      "tags": ["partial", "abstention", "mixed-answer"],
+      "document_refs": ["lease"],
+      "response": "I can provide citations for the first two items, but the third item is not found in the uploaded documents.\n<citations>\n[{\"filename\": \"commercial-lease-100-bishopsgate.pdf\", \"page\": 2, \"excerpt\": \"£850,000) per annum\", \"label\": \"Rent\"}]\n</citations>",
+      "expected": {
+        "trust_level": "partial",
+        "verified_count": 1,
+        "citation_count": 1
+      }
+    },
+    {
+      "id": "partial-abstention-language-with-mixed-citations",
+      "description": "Abstention phrasing for one fact does not downgrade verified+unverified citations to not_found.",
+      "tags": ["partial", "abstention", "mixed-answer"],
+      "document_refs": ["lease"],
+      "response": "The service charge is not found in the uploaded documents.\n<citations>\n[{\"filename\": \"commercial-lease-100-bishopsgate.pdf\", \"page\": 2, \"excerpt\": \"£850,000) per annum\", \"label\": \"Rent\"}, {\"filename\": \"commercial-lease-100-bishopsgate.pdf\", \"page\": 2, \"excerpt\": \"annual service charge of £125,000\", \"label\": \"Service charge\"}]\n</citations>",
+      "expected": {
+        "trust_level": "partial",
+        "verified_count": 1,
+        "citation_count": 2
+      }
+    },
+    {
+      "id": "high-title-price-paid",
+      "description": "Title report transfer price verifies on page 3.",
+      "tags": ["high", "single-doc"],
+      "document_refs": ["title_report"],
+      "response": "The stated transfer price was £4,250,000.\n<citations>\n[{\"filename\": \"title-report-lot-7.pdf\", \"page\": 3, \"excerpt\": \"£4,250,000 (Four Million Two Hundred and Fifty Thousand Pounds)\", \"label\": \"Price paid\"}]\n</citations>",
+      "expected": {
+        "trust_level": "high",
+        "verified_count": 1,
+        "citation_count": 1
+      }
+    },
+    {
+      "id": "high-restrictive-covenant",
+      "description": "Restrictive covenant excerpt verifies from title report.",
+      "tags": ["high", "single-doc"],
+      "document_refs": ["title_report"],
+      "response": "Development is limited to four storeys.\n<citations>\n[{\"filename\": \"title-report-lot-7.pdf\", \"page\": 4, \"excerpt\": \"exceeds four (4) storeys in height\", \"label\": \"Covenant (iii)\"}]\n</citations>",
+      "expected": {
+        "trust_level": "high",
+        "verified_count": 1,
+        "citation_count": 1
+      }
+    }
+  ]
+}
