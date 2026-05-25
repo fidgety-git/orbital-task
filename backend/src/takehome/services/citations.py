@@ -203,11 +203,14 @@ def resolve_document(filename: str, documents: list[Document]) -> Document | Non
     if len(documents) == 1:
         only_doc = documents[0]
         doc_name = only_doc.filename.lower()
-        if max(
-            fuzz.ratio(target_lower, doc_name),
-            fuzz.partial_ratio(target_lower, doc_name),
-            fuzz.token_set_ratio(target_lower, doc_name),
-        ) >= 68:
+        if (
+            max(
+                fuzz.ratio(target_lower, doc_name),
+                fuzz.partial_ratio(target_lower, doc_name),
+                fuzz.token_set_ratio(target_lower, doc_name),
+            )
+            >= 68
+        ):
             return only_doc
 
     scored = sorted(
