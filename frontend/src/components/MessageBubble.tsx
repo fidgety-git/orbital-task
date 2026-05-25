@@ -2,14 +2,20 @@ import { motion } from "framer-motion";
 import { Bot } from "lucide-react";
 import { Streamdown } from "streamdown";
 import "streamdown/styles.css";
-import type { Message } from "../types";
+import type { Citation, Message } from "../types";
+import { CitationChip } from "./CitationChip";
+import { TrustBanner } from "./TrustBanner";
 import { UserMessageContent } from "./UserMessageContent";
 
 interface MessageBubbleProps {
 	message: Message;
+	onCitationClick?: (citation: Citation) => void;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({
+	message,
+	onCitationClick,
+}: MessageBubbleProps) {
 	if (message.role === "system") {
 		return (
 			<motion.div
@@ -38,7 +44,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 		);
 	}
 
-	// Assistant message
+	const verifiedCount = message.verified_citations_count;
+	const unverifiedCount = message.citations.length - verifiedCount;
+
 	return (
 		<motion.div
 			initial={{ opacity: 0, y: 8 }}
@@ -50,14 +58,31 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 				<Bot className="h-4 w-4 text-white" />
 			</div>
 			<div className="min-w-0 max-w-[80%]">
+				<TrustBanner trustLevel={message.trust_level} />
 				<div className="prose">
 					<Streamdown>{message.content}</Streamdown>
 				</div>
-				{message.sources_cited > 0 && (
-					<p className="mt-1.5 text-xs text-neutral-400">
-						{message.sources_cited} source
-						{message.sources_cited !== 1 ? "s" : ""} cited
-					</p>
+
+				{message.citations.length > 0 && (
+					<>
+						<div className="mt-2 flex flex-wrap gap-1.5">
+							{message.citations.map((citation, index) => (
+								<CitationChip
+									key={`${citation.document_id}-${citation.page}-${index}`}
+									citation={citation}
+									onClick={
+										onCitationClick
+											? () => onCitationClick(citation)
+											: undefined
+									}
+								/>
+							))}
+						</div>
+						<p className="mt-1.5 text-xs text-neutral-400">
+							{verifiedCount} verified source{verifiedCount !== 1 ? "s" : ""}
+							{unverifiedCount > 0 ? ` · ${unverifiedCount} unverified` : ""}
+						</p>
+					</>
 				)}
 			</div>
 		</motion.div>

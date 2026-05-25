@@ -1,10 +1,10 @@
 import { ChevronLeft, ChevronRight, FileText, Loader2 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { Document as PDFDocument, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import { getDocumentUrl } from "../lib/api";
-import type { Document } from "../types";
+import type { CitationTarget, Document } from "../types";
 import { DocumentPicker } from "./DocumentPicker";
 import { Button } from "./ui/button";
 
@@ -20,6 +20,7 @@ const DEFAULT_WIDTH = 400;
 interface DocumentViewerProps {
 	documents: Document[];
 	selectedDocument: Document | null;
+	citationTarget?: CitationTarget | null;
 	onSelectDocument: (id: string) => void;
 	onRemoveDocument: (id: string) => void;
 }
@@ -27,18 +28,43 @@ interface DocumentViewerProps {
 interface DocumentPdfPanelProps {
 	document: Document;
 	pdfPageWidth: number;
+	citationTarget?: CitationTarget | null;
 }
 
-function DocumentPdfPanel({ document, pdfPageWidth }: DocumentPdfPanelProps) {
+function DocumentPdfPanel({
+	document,
+	pdfPageWidth,
+	citationTarget = null,
+}: DocumentPdfPanelProps) {
 	const [numPages, setNumPages] = useState(0);
 	const [currentPage, setCurrentPage] = useState(1);
 	const [pdfLoading, setPdfLoading] = useState(true);
 	const [pdfError, setPdfError] = useState<string | null>(null);
 	const pdfUrl = getDocumentUrl(document.id);
 
+	useLayoutEffect(() => {
+		if (!citationTarget) return;
+		if (citationTarget.documentId === document.id) {
+			setCurrentPage(Math.max(1, citationTarget.page));
+		}
+	}, [citationTarget, document.id]);
+
 	return (
 		<>
 			<div className="flex-1 overflow-y-auto p-4">
+				{citationTarget &&
+					citationTarget.documentId === document.id &&
+					citationTarget.excerpt && (
+						<div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+							<p className="text-xs font-medium text-emerald-900">
+								Cited passage · page {citationTarget.page}
+							</p>
+							<p className="mt-1 text-xs text-emerald-800">
+								{citationTarget.excerpt}
+							</p>
+						</div>
+					)}
+
 				{pdfError && (
 					<div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
 						{pdfError}
@@ -108,6 +134,7 @@ function DocumentPdfPanel({ document, pdfPageWidth }: DocumentPdfPanelProps) {
 export function DocumentViewer({
 	documents,
 	selectedDocument,
+	citationTarget = null,
 	onSelectDocument,
 	onRemoveDocument,
 }: DocumentViewerProps) {
@@ -153,7 +180,11 @@ export function DocumentViewer({
 				className="flex h-full flex-shrink-0 flex-col items-center justify-center border-l border-neutral-200 bg-neutral-50"
 			>
 				<FileText className="mb-3 h-10 w-10 text-neutral-300" />
-				<p className="text-sm text-neutral-400">No document uploaded</p>
+				<p className="text-sm text-neutral-400">
+					{documents.length === 0
+						? "No documents uploaded"
+						: "Select a document to view"}
+				</p>
 			</div>
 		);
 	}
@@ -182,6 +213,7 @@ export function DocumentViewer({
 				key={selectedDocument.id}
 				document={selectedDocument}
 				pdfPageWidth={pdfPageWidth}
+				citationTarget={citationTarget}
 			/>
 		</div>
 	);

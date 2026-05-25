@@ -1,11 +1,29 @@
 import { z } from "zod";
 
+export const TrustLevelSchema = z.enum([
+	"high",
+	"partial",
+	"unverified",
+	"not_found",
+]);
+
+export const CitationSchema = z.object({
+	document_id: z.string(),
+	filename: z.string(),
+	page: z.number().int().nonnegative(),
+	excerpt: z.string(),
+	label: z.string(),
+	verified: z.boolean(),
+});
+
 export const MessageSchema = z.object({
 	id: z.string(),
 	conversation_id: z.string(),
 	role: z.enum(["user", "assistant", "system"]),
 	content: z.string(),
-	sources_cited: z.number().int().nonnegative(),
+	verified_citations_count: z.number().int().nonnegative(),
+	citations: z.array(CitationSchema),
+	trust_level: TrustLevelSchema.nullable(),
 	created_at: z.string(),
 });
 
@@ -40,6 +58,25 @@ export const ConversationDetailResponseSchema = z.object({
 export const MessageListSchema = z.array(MessageSchema);
 export const ConversationListSchema = z.array(ConversationSchema);
 
+export const SseEventSchema = z.discriminatedUnion("type", [
+	z.object({
+		type: z.literal("content"),
+		content: z.string(),
+	}),
+	z.object({
+		type: z.literal("message"),
+		message: MessageSchema,
+	}),
+	z.object({
+		type: z.literal("done"),
+		verified_citations_count: z.number().int().nonnegative().optional(),
+		trust_level: TrustLevelSchema.optional(),
+		message_id: z.string().optional(),
+	}),
+]);
+
+export type TrustLevel = z.infer<typeof TrustLevelSchema>;
+export type Citation = z.infer<typeof CitationSchema>;
 export type Message = z.infer<typeof MessageSchema>;
 export type Document = z.infer<typeof DocumentSchema>;
 export type Conversation = z.infer<typeof ConversationSchema>;

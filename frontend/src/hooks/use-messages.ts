@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as api from "../lib/api";
+import { SseEventSchema } from "../lib/schemas";
 import type { Message } from "../types";
 
 export function useMessages(conversationId: string | null) {
@@ -45,7 +46,9 @@ export function useMessages(conversationId: string | null) {
 				conversation_id: conversationId,
 				role: "user",
 				content,
-				sources_cited: 0,
+				verified_citations_count: 0,
+				citations: [],
+				trust_level: null,
 				created_at: new Date().toISOString(),
 			};
 
@@ -65,6 +68,7 @@ export function useMessages(conversationId: string | null) {
 				const decoder = new TextDecoder();
 				let accumulated = "";
 				let buffer = "";
+				let receivedAssistantMessage = false;
 
 				while (true) {
 					const { done, value } = await reader.read();
@@ -72,7 +76,6 @@ export function useMessages(conversationId: string | null) {
 
 					buffer += decoder.decode(value, { stream: true });
 					const lines = buffer.split("\n");
-					// Keep the last potentially incomplete line in the buffer
 					buffer = lines.pop() ?? "";
 
 					for (const line of lines) {
@@ -83,27 +86,31 @@ export function useMessages(conversationId: string | null) {
 						if (data === "[DONE]") continue;
 
 						try {
-							const parsed = JSON.parse(data) as {
-								type?: string;
-								content?: string;
-								delta?: string;
-								message?: Message;
-							};
+							const parsed: unknown = JSON.parse(data);
+							const event = SseEventSchema.safeParse(parsed);
+							if (!event.success) continue;
 
-							if (parsed.type === "delta" && parsed.delta) {
-								accumulated += parsed.delta;
+							if (event.data.type === "content") {
+								accumulated += event.data.content;
 								setStreamingContent(accumulated);
-							} else if (parsed.type === "content" && parsed.content) {
-								accumulated += parsed.content;
-								setStreamingContent(accumulated);
-							} else if (parsed.type === "message" && parsed.message) {
-								// Final message from server
-								setMessages((prev) => [...prev, parsed.message as Message]);
+							} else if (event.data.type === "message") {
+								const assistantMessage = event.data.message;
+								setMessages((prev) => {
+									if (
+										prev.some((message) => message.id === assistantMessage.id)
+									) {
+										return prev;
+									}
+									return [...prev, assistantMessage];
+								});
 								accumulated = "";
-							} else if (parsed.content && !parsed.type) {
-								// Fallback: plain content field
-								accumulated += parsed.content;
-								setStreamingContent(accumulated);
+								setStreamingContent("");
+								receivedAssistantMessage = true;
+								setStreaming(false);
+							} else if (event.data.type === "done") {
+								accumulated = "";
+								setStreamingContent("");
+								setStreaming(false);
 							}
 						} catch {
 							// Skip invalid JSON lines
@@ -111,23 +118,12 @@ export function useMessages(conversationId: string | null) {
 					}
 				}
 
-				// If we accumulated content but never got a final message,
-				// create a synthetic assistant message
-				if (accumulated) {
-					const assistantMessage: Message = {
-						id: `stream-${Date.now()}`,
-						conversation_id: conversationId,
-						role: "assistant",
-						content: accumulated,
-						sources_cited: 0,
-						created_at: new Date().toISOString(),
-					};
-					setMessages((prev) => [...prev, assistantMessage]);
-				}
-
-				// Refresh to get server-canonical messages
 				const freshMessages = await api.fetchMessages(conversationId);
 				setMessages(freshMessages);
+
+				if (!receivedAssistantMessage && accumulated) {
+					setError("Response completed without a saved assistant message.");
+				}
 			} catch (err) {
 				if (err instanceof DOMException && err.name === "AbortError") return;
 				setError(err instanceof Error ? err.message : "Failed to send message");

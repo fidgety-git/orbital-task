@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import re
 from collections.abc import AsyncIterator
 
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
 from takehome.config import settings  # noqa: F401  # pyright: ignore[reportUnusedImport]
+from takehome.services.citations import ABSTENTION_PHRASE
 from takehome.services.mentions import format_message_for_llm
-
-ABSTENTION_PHRASE = "This information is not found in the uploaded documents."
 
 SYSTEM_PROMPT = """\
 You are a helpful legal document assistant for commercial real estate due diligence.
@@ -39,13 +37,36 @@ for facts not in the text.
 DOCUMENT SCOPE:
 - Multiple documents may be provided. Use all of them unless the user @-mentions specific files.
 - When @-mentions are specified, use ONLY those documents.
-- Document text includes page markers like "--- Page N ---". Use those page numbers when referencing pages.
+- Document text includes page markers like "--- Page N ---". Use those page numbers in citations.
 
 ANSWER STYLE:
 - Be concise and precise. Lead with the direct answer or abstention.
-- Prefer quoting or paraphrasing closely from the source text.
+- Prefer quoting or paraphrasing closely from the source text, but don't add direct citations to the answer, as these are linked separately.
 - Try to answer only the direct question without assuming the user wants more information.
 - For cross-document questions, structure the answer by document.
+
+CITATION FORMAT (required on every non-abstention answer):
+- You MUST end every grounded answer with a citations block — never omit it.
+- Prose quotes or numbered lists in your answer do NOT replace the citations block. The JSON block \
+is how sources are verified — always append it as the final lines of your response.
+- After your answer, append:
+  <citations>
+  [{"filename": "exact-filename.pdf", "page": 4, "excerpt": "verbatim quote from that page", "label": "Section 3.1"}]
+  </citations>
+- Use the EXACT filename string from the Available files list or <document filename="..."> tag — \
+do not shorten, abbreviate, or paraphrase filenames. Mismatched filenames fail verification.
+- Include one citation entry per distinct source passage you rely on.
+- For multi-part questions, provide a separate citation for each supported sub-answer — do not \
+merge unrelated facts into one citation.
+- The excerpt MUST be copied verbatim from the document text on that page (shortest contiguous span \
+that supports the claim). Do NOT paraphrase, summarize, or merge lines — copied text is matched \
+character-for-character against the PDF extraction.
+- Pick the page number from the nearest "--- Page N ---" marker above the excerpt.
+- For cross-document answers, include at least one citation from each document you use.
+- If abstaining because the answer is not in the documents, use an empty array:
+  <citations>[]</citations>
+- Do NOT add citations for text you did not use. Unverified citations erode trust.
+- Output raw JSON only inside <citations> — no markdown code fences.
 """
 
 agent = Agent(
@@ -102,6 +123,11 @@ def build_chat_prompt(
         prompt_parts.append("The following documents are available for this conversation:\n")
         for filename, text in documents:
             prompt_parts.append(f'<document filename="{filename}">\n{text}\n</document>\n')
+        prompt_parts.append(
+            "CITATION REMINDER: In your <citations> block, each filename must exactly match one of: "
+            f"{', '.join(filename for filename, _ in documents)}. "
+            "Each excerpt must be a verbatim copy from that document's text.\n"
+        )
     else:
         prompt_parts.append(
             "No documents have been uploaded yet. If the user asks about document content, "
@@ -144,17 +170,3 @@ async def chat_with_document(
     async with agent.run_stream(full_prompt) as result:
         async for text in result.stream_text(delta=True):
             yield text
-
-
-def count_sources_cited(response: str) -> int:
-    """Count the number of references to document sections, clauses, pages, etc."""
-    patterns = [
-        r"section\s+\d+",
-        r"clause\s+\d+",
-        r"page\s+\d+",
-        r"paragraph\s+\d+",
-    ]
-    count = 0
-    for pattern in patterns:
-        count += len(re.findall(pattern, response, re.IGNORECASE))
-    return count

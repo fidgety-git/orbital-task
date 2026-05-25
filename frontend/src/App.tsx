@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { ChatSidebar } from "./components/ChatSidebar";
 import { ChatWindow } from "./components/ChatWindow";
 import { DocumentNameConflictDialog } from "./components/DocumentNameConflictDialog";
@@ -8,6 +8,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { useConversations } from "./hooks/use-conversations";
 import { useDocuments } from "./hooks/use-documents";
 import { useMessages } from "./hooks/use-messages";
+import type { Citation, CitationTarget } from "./types";
 
 export default function App() {
 	const {
@@ -46,6 +47,31 @@ export default function App() {
 		selectDocument,
 		refresh: refreshDocuments,
 	} = useDocuments(selectedId);
+
+	const [citationTarget, setCitationTarget] = useState<CitationTarget | null>(
+		null,
+	);
+
+	const handleCitationClick = useCallback(
+		(citation: Citation) => {
+			if (!citation.document_id) return;
+			selectDocument(citation.document_id);
+			setCitationTarget({
+				documentId: citation.document_id,
+				page: citation.page,
+				excerpt: citation.excerpt,
+			});
+		},
+		[selectDocument],
+	);
+
+	const handleSelectDocument = useCallback(
+		(id: string) => {
+			setCitationTarget(null);
+			selectDocument(id);
+		},
+		[selectDocument],
+	);
 
 	const handleSend = useCallback(
 		async (content: string) => {
@@ -112,13 +138,15 @@ export default function App() {
 					conversationId={selectedId}
 					onSend={handleSend}
 					onUpload={handleUpload}
-					onSelectDocument={selectDocument}
+					onSelectDocument={handleSelectDocument}
+					onCitationClick={handleCitationClick}
 				/>
 
 				<DocumentViewer
 					documents={documents}
 					selectedDocument={selectedDocument}
-					onSelectDocument={selectDocument}
+					citationTarget={citationTarget}
+					onSelectDocument={handleSelectDocument}
 					onRemoveDocument={requestRemove}
 				/>
 
