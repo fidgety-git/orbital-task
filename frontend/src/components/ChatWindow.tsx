@@ -64,12 +64,14 @@ function ChatFooter({
 	uploading,
 	onSend,
 	onUpload,
+	onSelectDocument,
 }: {
 	disabled: boolean;
 	documents: Document[];
 	uploading: boolean;
 	onSend: (content: string) => void;
 	onUpload: (files: File[]) => void;
+	onSelectDocument: (id: string) => void;
 }) {
 	return (
 		<div className="border-t border-neutral-200 bg-white">
@@ -78,7 +80,9 @@ function ChatFooter({
 				onSend={onSend}
 				onUpload={onUpload}
 				disabled={disabled}
+				documents={documents}
 				uploading={uploading}
+				onSelectDocument={onSelectDocument}
 			/>
 		</div>
 	);
@@ -134,6 +138,7 @@ export function ChatWindow({
 			uploading={uploading}
 			onSend={onSend}
 			onUpload={onUpload}
+			onSelectDocument={onSelectDocument}
 		/>
 	);
 

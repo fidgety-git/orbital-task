@@ -1,3 +1,14 @@
+export function filterDocumentsByQuery<T extends { filename: string }>(
+	documents: T[],
+	query: string,
+): T[] {
+	const normalized = query.trim().toLowerCase();
+	if (!normalized) return documents;
+	return documents.filter((doc) =>
+		doc.filename.toLowerCase().includes(normalized),
+	);
+}
+
 export function hasFilenameConflict(
 	existingFilenames: string[],
 	filename: string,

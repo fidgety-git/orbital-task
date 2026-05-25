@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from datetime import datetime
+from typing import cast
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
-from takehome.db.models import Message
+from takehome.db.models import Document, Message
 from takehome.db.session import get_session
 from takehome.services.conversation import (
     get_conversation,
@@ -20,6 +21,11 @@ from takehome.services.conversation import (
 )
 from takehome.services.document import get_documents_for_conversation
 from takehome.services.llm import chat_with_document, count_sources_cited, generate_title
+from takehome.services.mentions import (
+    DocumentLike,
+    format_message_for_llm,
+    scope_documents_to_mentions,
+)
 
 logger = structlog.get_logger()
 
@@ -111,7 +117,12 @@ async def send_message(
 
     logger.info("User message saved", conversation_id=conversation_id, message_id=user_message.id)
 
-    documents = await get_documents_for_conversation(session, conversation_id)
+    all_documents = await get_documents_for_conversation(session, conversation_id)
+    scoped_documents, scoped_filenames = scope_documents_to_mentions(
+        cast(list[DocumentLike], all_documents),
+        body.content,
+    )
+    documents = cast(list[Document], scoped_documents)
     document_context: list[tuple[str, str]] = [
         (doc.filename, doc.extracted_text or "") for doc in documents
     ]
@@ -143,6 +154,7 @@ async def send_message(
                 user_message=body.content,
                 documents=document_context,
                 conversation_history=conversation_history,
+                scoped_filenames=scoped_filenames,
             ):
                 full_response += chunk
                 event_data = json.dumps({"type": "content", "content": chunk})
@@ -181,7 +193,7 @@ async def send_message(
             # Auto-generate title from first user message
             if is_first_message:
                 try:
-                    title = await generate_title(body.content)
+                    title = await generate_title(format_message_for_llm(body.content))
                     await update_conversation(save_session, conversation_id, title)
                     logger.info(
                         "Auto-generated conversation title",

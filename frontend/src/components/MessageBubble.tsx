@@ -3,6 +3,7 @@ import { Bot } from "lucide-react";
 import { Streamdown } from "streamdown";
 import "streamdown/styles.css";
 import type { Message } from "../types";
+import { UserMessageContent } from "./UserMessageContent";
 
 interface MessageBubbleProps {
 	message: Message;
@@ -31,9 +32,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 				className="flex justify-end py-1.5"
 			>
 				<div className="max-w-[75%] rounded-2xl rounded-br-md bg-neutral-100 px-4 py-2.5">
-					<p className="whitespace-pre-wrap text-sm text-neutral-800">
-						{message.content}
-					</p>
+					<UserMessageContent content={message.content} />
 				</div>
 			</motion.div>
 		);
