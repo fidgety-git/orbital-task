@@ -64,7 +64,7 @@ export function ChatSidebar({
 							>
 								<button
 									type="button"
-									className={`group flex w-full items-center rounded-lg px-3 py-2.5 text-left transition-colors ${
+									className={`group flex w-full items-start rounded-lg px-3 py-2.5 text-left transition-colors ${
 										selectedId === conversation.id
 											? "bg-neutral-100"
 											: "hover:bg-neutral-50"
@@ -73,8 +73,8 @@ export function ChatSidebar({
 									onMouseEnter={() => setHoveredId(conversation.id)}
 									onMouseLeave={() => setHoveredId(null)}
 								>
-									<div className="min-w-0 flex-1 overflow-hidden">
-										<p className="truncate text-sm font-medium text-neutral-800">
+									<div className="min-w-0 flex-1">
+										<p className="break-words text-sm font-medium leading-snug text-neutral-800">
 											{conversation.title}
 										</p>
 										<p className="mt-0.5 text-xs text-neutral-400">
@@ -89,7 +89,7 @@ export function ChatSidebar({
 										</p>
 									</div>
 
-									<div className="ml-2 w-6 flex-shrink-0">
+									<div className="ml-2 w-6 flex-shrink-0 pt-0.5">
 										{hoveredId === conversation.id && (
 											<button
 												type="button"

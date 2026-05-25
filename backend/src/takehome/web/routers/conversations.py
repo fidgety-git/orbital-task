@@ -152,7 +152,7 @@ async def delete_conversation_endpoint(
     conversation_id: str,
     session: AsyncSession = Depends(get_session),
 ) -> None:
-    """Delete a conversation and all associated data."""
+    """Soft-delete a conversation."""
     deleted = await delete_conversation(session, conversation_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Conversation not found")

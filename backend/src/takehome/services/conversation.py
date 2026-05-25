@@ -9,6 +9,10 @@ from sqlalchemy.orm import selectinload
 from takehome.db.models import Conversation
 
 
+def _active_conversations_filter():
+    return Conversation.deleted_at.is_(None)
+
+
 async def create_conversation(session: AsyncSession) -> Conversation:
     """Create a new conversation with default title."""
     conversation = Conversation()
@@ -19,10 +23,11 @@ async def create_conversation(session: AsyncSession) -> Conversation:
 
 
 async def list_conversations(session: AsyncSession) -> list[Conversation]:
-    """List all conversations ordered by most recently updated."""
+    """List active conversations ordered by most recently updated."""
     stmt = (
         select(Conversation)
         .options(selectinload(Conversation.documents))
+        .where(_active_conversations_filter())
         .order_by(Conversation.updated_at.desc())
     )
     result = await session.execute(stmt)
@@ -30,11 +35,11 @@ async def list_conversations(session: AsyncSession) -> list[Conversation]:
 
 
 async def get_conversation(session: AsyncSession, conversation_id: str) -> Conversation | None:
-    """Get a single conversation with its documents eagerly loaded."""
+    """Get a single active conversation with its documents eagerly loaded."""
     stmt = (
         select(Conversation)
         .options(selectinload(Conversation.documents))
-        .where(Conversation.id == conversation_id)
+        .where(Conversation.id == conversation_id, _active_conversations_filter())
     )
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
@@ -42,7 +47,7 @@ async def get_conversation(session: AsyncSession, conversation_id: str) -> Conve
 
 async def mark_conversation_updated(session: AsyncSession, conversation_id: str) -> None:
     """Mark a conversation as recently active for sidebar ordering."""
-    conversation = await session.get(Conversation, conversation_id)
+    conversation = await get_conversation(session, conversation_id)
     if conversation is not None:
         conversation.updated_at = datetime.now(UTC).replace(tzinfo=None)
 
@@ -62,12 +67,10 @@ async def update_conversation(
 
 
 async def delete_conversation(session: AsyncSession, conversation_id: str) -> bool:
-    """Delete a conversation. Returns True if it existed and was deleted."""
-    stmt = select(Conversation).where(Conversation.id == conversation_id)
-    result = await session.execute(stmt)
-    conversation = result.scalar_one_or_none()
+    """Soft-delete a conversation. Returns True if an active conversation existed."""
+    conversation = await get_conversation(session, conversation_id)
     if conversation is None:
         return False
-    await session.delete(conversation)
+    conversation.deleted_at = datetime.now(UTC).replace(tzinfo=None)
     await session.commit()
     return True
