@@ -14,8 +14,12 @@ export function useDocuments(conversationId: string | null) {
 		null,
 	);
 	const [uploading, setUploading] = useState(false);
+	const [removing, setRemoving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [nameConflict, setNameConflict] = useState<DocumentNameConflict | null>(
+		null,
+	);
+	const [documentToRemove, setDocumentToRemove] = useState<Document | null>(
 		null,
 	);
 	const pendingUploadsRef = useRef<File[]>([]);
@@ -45,6 +49,7 @@ export function useDocuments(conversationId: string | null) {
 
 	useEffect(() => {
 		setNameConflict(null);
+		setDocumentToRemove(null);
 		pendingUploadsRef.current = [];
 		refresh();
 	}, [refresh]);
@@ -176,6 +181,49 @@ export function useDocuments(conversationId: string | null) {
 		void processUploadQueue();
 	}, [processUploadQueue]);
 
+	const requestRemove = useCallback(
+		(documentId: string) => {
+			const doc = documents.find((item) => item.id === documentId);
+			if (doc) setDocumentToRemove(doc);
+		},
+		[documents],
+	);
+
+	const cancelRemove = useCallback(() => {
+		if (!removing) setDocumentToRemove(null);
+	}, [removing]);
+
+	const confirmRemove = useCallback(async () => {
+		if (!documentToRemove) return false;
+
+		setRemoving(true);
+		setError(null);
+		const documentId = documentToRemove.id;
+
+		try {
+			await api.deleteDocument(documentId);
+			setDocuments((prev) => {
+				const next = prev.filter((item) => item.id !== documentId);
+				setSelectedDocumentId((current) => {
+					if (current !== documentId) return current;
+					const deletedIndex = prev.findIndex((item) => item.id === documentId);
+					const nextIndex = Math.min(deletedIndex, next.length - 1);
+					return next[nextIndex]?.id ?? null;
+				});
+				return next;
+			});
+			setDocumentToRemove(null);
+			return true;
+		} catch (err) {
+			setError(
+				err instanceof Error ? err.message : "Failed to remove document",
+			);
+			return false;
+		} finally {
+			setRemoving(false);
+		}
+	}, [documentToRemove]);
+
 	const selectDocument = useCallback((id: string) => {
 		setSelectedDocumentId(id);
 	}, []);
@@ -192,11 +240,16 @@ export function useDocuments(conversationId: string | null) {
 		documents,
 		selectedDocument,
 		uploading,
+		removing,
 		error,
 		nameConflict,
+		documentToRemove,
 		upload,
 		resolveNameConflict,
 		cancelNameConflict,
+		requestRemove,
+		cancelRemove,
+		confirmRemove,
 		selectDocument,
 		refresh,
 	};

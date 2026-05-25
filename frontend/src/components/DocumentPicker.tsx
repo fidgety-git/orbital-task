@@ -4,6 +4,7 @@ import {
 	ChevronRight,
 	FileText,
 	Search,
+	Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Document } from "../types";
@@ -13,6 +14,7 @@ interface DocumentPickerProps {
 	documents: Document[];
 	selectedDocument: Document | null;
 	onSelectDocument: (id: string) => void;
+	onRemoveDocument: (id: string) => void;
 }
 
 function filterDocumentsByQuery(
@@ -30,6 +32,7 @@ export function DocumentPicker({
 	documents,
 	selectedDocument,
 	onSelectDocument,
+	onRemoveDocument,
 }: DocumentPickerProps) {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
@@ -153,6 +156,16 @@ export function DocumentPicker({
 						<ChevronRight className="h-4 w-4" />
 					</Button>
 				)}
+
+				<Button
+					variant="ghost"
+					size="icon"
+					className="h-7 w-7 flex-shrink-0 text-neutral-400 hover:text-red-600"
+					onClick={() => onRemoveDocument(selectedDocument.id)}
+					title="Remove document"
+				>
+					<Trash2 className="h-4 w-4" />
+				</Button>
 			</div>
 
 			{open && (
@@ -181,33 +194,49 @@ export function DocumentPicker({
 								const isActive = doc.id === selectedDocument.id;
 								const docIndex = documents.findIndex((d) => d.id === doc.id);
 								return (
-									<li key={doc.id}>
-										<button
-											type="button"
-											className={`flex w-full items-start gap-2 px-3 py-2 text-left text-sm ${
+									<li key={doc.id} className="group">
+										<div
+											className={`flex w-full items-start gap-1 pr-1 ${
 												isActive
 													? "bg-neutral-100 text-neutral-900"
 													: "text-neutral-700 hover:bg-neutral-50"
 											}`}
-											onClick={() => {
-												onSelectDocument(doc.id);
-												setOpen(false);
-											}}
 										>
-											<FileText className="mt-0.5 h-4 w-4 flex-shrink-0 text-neutral-400" />
-											<span className="min-w-0 flex-1">
-												<span className="block truncate font-medium">
-													{doc.filename}
+											<button
+												type="button"
+												className="flex min-w-0 flex-1 items-start gap-2 px-3 py-2 text-left text-sm"
+												onClick={() => {
+													onSelectDocument(doc.id);
+													setOpen(false);
+												}}
+											>
+												<FileText className="mt-0.5 h-4 w-4 flex-shrink-0 text-neutral-400" />
+												<span className="min-w-0 flex-1">
+													<span className="block truncate font-medium">
+														{doc.filename}
+													</span>
+													<span className="block text-xs text-neutral-400">
+														{doc.page_count} page
+														{doc.page_count !== 1 ? "s" : ""}
+														{hasMultiple
+															? ` · ${docIndex + 1} of ${documents.length}`
+															: ""}
+													</span>
 												</span>
-												<span className="block text-xs text-neutral-400">
-													{doc.page_count} page
-													{doc.page_count !== 1 ? "s" : ""}
-													{hasMultiple
-														? ` · ${docIndex + 1} of ${documents.length}`
-														: ""}
-												</span>
-											</span>
-										</button>
+											</button>
+											<button
+												type="button"
+												className="mt-1.5 rounded p-1.5 text-neutral-400 opacity-0 transition-opacity hover:bg-neutral-200 hover:text-red-600 group-hover:opacity-100"
+												title="Remove document"
+												onClick={(e) => {
+													e.stopPropagation();
+													onRemoveDocument(doc.id);
+													setOpen(false);
+												}}
+											>
+												<Trash2 className="h-3.5 w-3.5" />
+											</button>
+										</div>
 									</li>
 								);
 							})

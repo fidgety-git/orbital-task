@@ -57,8 +57,12 @@ class ConversationUpdate(BaseModel):
     title: str
 
 
+def _active_documents(documents: list[Document]) -> list[Document]:
+    return [doc for doc in documents if doc.deleted_at is None]
+
+
 def _documents_to_info(documents: list[Document]) -> list[DocumentInfo]:
-    sorted_docs = sorted(documents, key=lambda doc: doc.uploaded_at)
+    sorted_docs = sorted(_active_documents(documents), key=lambda doc: doc.uploaded_at)
     return [
         DocumentInfo(
             id=doc.id,
@@ -98,7 +102,7 @@ async def list_conversations_endpoint(
             title=c.title,
             created_at=c.created_at,
             updated_at=c.updated_at,
-            document_count=len(c.documents),
+            document_count=len(_active_documents(c.documents)),
         )
         for c in conversations
     ]

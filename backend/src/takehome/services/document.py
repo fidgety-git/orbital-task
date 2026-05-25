@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from datetime import UTC, datetime
 
 import fitz  # PyMuPDF  # pyright: ignore[reportMissingTypeStubs]
 import structlog
@@ -17,13 +18,18 @@ from takehome.services.document_errors import DuplicateFilenameError
 logger = structlog.get_logger()
 
 
+def _active_documents_filter():
+    return Document.deleted_at.is_(None)
+
+
 async def find_document_by_filename(
     session: AsyncSession, conversation_id: str, filename: str
 ) -> Document | None:
-    """Find a document in the conversation by filename (case-insensitive)."""
+    """Find an active document in the conversation by filename (case-insensitive)."""
     stmt = select(Document).where(
         Document.conversation_id == conversation_id,
         func.lower(Document.filename) == filename.lower(),
+        _active_documents_filter(),
     )
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
@@ -41,7 +47,7 @@ async def upload_document(
     and stores metadata in the database.
 
     Raises ValueError if the file is not a PDF or exceeds the size limit.
-    Raises DuplicateFilenameError if the display filename already exists in this conversation.
+    Raises DuplicateFilenameError if an active document with the same display filename exists.
     """
     if file.content_type not in ("application/pdf", "application/x-pdf"):
         upload_name = filename or file.filename or ""
@@ -112,8 +118,11 @@ async def upload_document(
 
 
 async def get_document(session: AsyncSession, document_id: str) -> Document | None:
-    """Get a document by its ID."""
-    stmt = select(Document).where(Document.id == document_id)
+    """Get an active document by its ID."""
+    stmt = select(Document).where(
+        Document.id == document_id,
+        _active_documents_filter(),
+    )
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
 
@@ -121,11 +130,30 @@ async def get_document(session: AsyncSession, document_id: str) -> Document | No
 async def get_documents_for_conversation(
     session: AsyncSession, conversation_id: str
 ) -> list[Document]:
-    """Get all documents for a conversation, ordered by upload time."""
+    """Get active documents for a conversation, ordered by upload time."""
     stmt = (
         select(Document)
-        .where(Document.conversation_id == conversation_id)
+        .where(
+            Document.conversation_id == conversation_id,
+            _active_documents_filter(),
+        )
         .order_by(Document.uploaded_at.asc())
     )
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+async def delete_document(session: AsyncSession, document_id: str) -> bool:
+    """Soft-delete a document. Returns True if an active document existed."""
+    document = await get_document(session, document_id)
+    if document is None:
+        return False
+
+    conversation_id = document.conversation_id
+    filename = document.filename
+    document.deleted_at = datetime.now(UTC).replace(tzinfo=None)
+    await mark_conversation_updated(session, conversation_id)
+    await session.commit()
+
+    logger.info("Document soft-deleted", document_id=document_id, filename=filename)
+    return True

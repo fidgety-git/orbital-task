@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { ChatSidebar } from "./components/ChatSidebar";
 import { ChatWindow } from "./components/ChatWindow";
 import { DocumentNameConflictDialog } from "./components/DocumentNameConflictDialog";
+import { DocumentRemoveDialog } from "./components/DocumentRemoveDialog";
 import { DocumentViewer } from "./components/DocumentViewer";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { useConversations } from "./hooks/use-conversations";
@@ -32,11 +33,16 @@ export default function App() {
 		documents,
 		selectedDocument,
 		uploading,
+		removing,
 		error: documentsError,
 		upload,
 		nameConflict,
+		documentToRemove,
 		resolveNameConflict,
 		cancelNameConflict,
+		requestRemove,
+		cancelRemove,
+		confirmRemove,
 		selectDocument,
 		refresh: refreshDocuments,
 	} = useDocuments(selectedId);
@@ -70,6 +76,14 @@ export default function App() {
 		},
 		[resolveNameConflict, refreshDocuments, refreshConversations],
 	);
+
+	const handleConfirmRemove = useCallback(async () => {
+		const removed = await confirmRemove();
+		if (removed) {
+			refreshDocuments();
+			refreshConversations();
+		}
+	}, [confirmRemove, refreshDocuments, refreshConversations]);
 
 	const handleCreate = useCallback(async () => {
 		await create();
@@ -105,6 +119,7 @@ export default function App() {
 					documents={documents}
 					selectedDocument={selectedDocument}
 					onSelectDocument={selectDocument}
+					onRemoveDocument={requestRemove}
 				/>
 
 				<DocumentNameConflictDialog
@@ -112,6 +127,13 @@ export default function App() {
 					existingFilenames={documents.map((doc) => doc.filename)}
 					onCancel={cancelNameConflict}
 					onConfirm={handleResolveNameConflict}
+				/>
+
+				<DocumentRemoveDialog
+					document={documentToRemove}
+					removing={removing}
+					onCancel={cancelRemove}
+					onConfirm={handleConfirmRemove}
 				/>
 			</div>
 		</TooltipProvider>

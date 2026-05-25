@@ -21,6 +21,7 @@ interface DocumentViewerProps {
 	documents: Document[];
 	selectedDocument: Document | null;
 	onSelectDocument: (id: string) => void;
+	onRemoveDocument: (id: string) => void;
 }
 
 interface DocumentPdfPanelProps {
@@ -108,6 +109,7 @@ export function DocumentViewer({
 	documents,
 	selectedDocument,
 	onSelectDocument,
+	onRemoveDocument,
 }: DocumentViewerProps) {
 	const [width, setWidth] = useState(DEFAULT_WIDTH);
 	const [dragging, setDragging] = useState(false);
@@ -173,6 +175,7 @@ export function DocumentViewer({
 				documents={documents}
 				selectedDocument={selectedDocument}
 				onSelectDocument={onSelectDocument}
+				onRemoveDocument={onRemoveDocument}
 			/>
 
 			<DocumentPdfPanel

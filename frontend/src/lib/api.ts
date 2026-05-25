@@ -155,6 +155,13 @@ export async function uploadDocument(
 	return handleJsonResponse(res, DocumentSchema, "document");
 }
 
+export async function deleteDocument(documentId: string): Promise<void> {
+	const res = await fetch(`${BASE}/documents/${documentId}`, {
+		method: "DELETE",
+	});
+	await handleEmptyResponse(res);
+}
+
 export function getDocumentUrl(documentId: string): string {
 	return `${BASE}/documents/${documentId}/content`;
 }
