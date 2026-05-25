@@ -3,21 +3,37 @@ from __future__ import annotations
 import os
 import uuid
 
-import fitz  # PyMuPDF
+import fitz  # PyMuPDF  # pyright: ignore[reportMissingTypeStubs]
 import structlog
 from fastapi import UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from takehome.config import settings
 from takehome.db.models import Document
 from takehome.services.conversation import mark_conversation_updated
+from takehome.services.document_errors import DuplicateFilenameError
 
 logger = structlog.get_logger()
 
 
+async def find_document_by_filename(
+    session: AsyncSession, conversation_id: str, filename: str
+) -> Document | None:
+    """Find a document in the conversation by filename (case-insensitive)."""
+    stmt = select(Document).where(
+        Document.conversation_id == conversation_id,
+        func.lower(Document.filename) == filename.lower(),
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
+
+
 async def upload_document(
-    session: AsyncSession, conversation_id: str, file: UploadFile
+    session: AsyncSession,
+    conversation_id: str,
+    file: UploadFile,
+    filename: str | None = None,
 ) -> Document:
     """Upload and process a PDF document for a conversation.
 
@@ -25,36 +41,38 @@ async def upload_document(
     and stores metadata in the database.
 
     Raises ValueError if the file is not a PDF or exceeds the size limit.
+    Raises DuplicateFilenameError if the display filename already exists in this conversation.
     """
-    # Validate file type
     if file.content_type not in ("application/pdf", "application/x-pdf"):
-        filename = file.filename or ""
-        if not filename.lower().endswith(".pdf"):
+        upload_name = filename or file.filename or ""
+        if not upload_name.lower().endswith(".pdf"):
             raise ValueError("Only PDF files are supported.")
 
-    # Read file content
     content = await file.read()
 
-    # Validate file size
     if len(content) > settings.max_upload_size:
         raise ValueError(
             f"File too large. Maximum size is {settings.max_upload_size // (1024 * 1024)}MB."
         )
 
-    original_filename = file.filename or "document.pdf"
+    original_filename = (filename or file.filename or "document.pdf").strip()
+    if not original_filename.lower().endswith(".pdf"):
+        original_filename = f"{original_filename}.pdf"
+
+    existing = await find_document_by_filename(session, conversation_id, original_filename)
+    if existing is not None:
+        raise DuplicateFilenameError(original_filename, existing.id)
+
     unique_name = f"{uuid.uuid4().hex}_{original_filename}"
     file_path = os.path.join(settings.upload_dir, unique_name)
 
-    # Ensure upload directory exists
     os.makedirs(settings.upload_dir, exist_ok=True)
 
-    # Save the file to disk
     with open(file_path, "wb") as f:
         f.write(content)
 
     logger.info("Saved uploaded PDF", filename=original_filename, path=file_path, size=len(content))
 
-    # Extract text using PyMuPDF
     extracted_text = ""
     page_count = 0
     try:
@@ -63,7 +81,7 @@ async def upload_document(
         pages: list[str] = []
         for page_num in range(page_count):
             page = doc[page_num]
-            text = page.get_text()  # type: ignore[union-attr]
+            text = str(page.get_text())  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
             if text.strip():
                 pages.append(f"--- Page {page_num + 1} ---\n{text}")
         extracted_text = "\n\n".join(pages)
@@ -79,7 +97,6 @@ async def upload_document(
         text_length=len(extracted_text),
     )
 
-    # Create the document record
     document = Document(
         conversation_id=conversation_id,
         filename=original_filename,

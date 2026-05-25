@@ -14,19 +14,47 @@ import type {
 	Document,
 	Message,
 } from "./schemas";
+import { DuplicateFilenameError } from "./upload-errors";
 
 const BASE = "/api";
+
+type ApiErrorDetail =
+	| string
+	| {
+			code?: string;
+			filename?: string;
+			existing_document_id?: string;
+			message?: string;
+	  };
 
 async function parseErrorResponse(response: Response): Promise<never> {
 	const text = await response.text().catch(() => "Unknown error");
 
 	try {
-		const payload = JSON.parse(text) as { detail?: string };
-		if (typeof payload.detail === "string") {
-			throw new Error(payload.detail);
+		const payload = JSON.parse(text) as { detail?: ApiErrorDetail };
+		const detail = payload.detail;
+
+		if (
+			response.status === 409 &&
+			typeof detail === "object" &&
+			detail?.code === "duplicate_filename" &&
+			detail.filename
+		) {
+			throw new DuplicateFilenameError(
+				detail.filename,
+				detail.existing_document_id,
+				detail.message,
+			);
+		}
+
+		if (typeof detail === "string") {
+			throw new Error(detail);
+		}
+		if (typeof detail === "object" && detail?.message) {
+			throw new Error(detail.message);
 		}
 	} catch (error) {
-		if (error instanceof Error && !error.message.startsWith("API error")) {
+		if (error instanceof DuplicateFilenameError) {
 			throw error;
 		}
 	}
@@ -113,9 +141,13 @@ export async function sendMessage(
 export async function uploadDocument(
 	conversationId: string,
 	file: File,
+	filename?: string,
 ): Promise<Document> {
 	const formData = new FormData();
 	formData.append("file", file);
+	if (filename) {
+		formData.append("filename", filename);
+	}
 	const res = await fetch(`${BASE}/conversations/${conversationId}/documents`, {
 		method: "POST",
 		body: formData,

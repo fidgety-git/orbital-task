@@ -57,7 +57,7 @@ async def update_conversation(
     if conversation is None:
         return None
     conversation.title = title
-    mark_conversation_updated(session, conversation_id)
+    await mark_conversation_updated(session, conversation_id)
     await session.commit()
     await session.refresh(conversation)
     return conversation

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from takehome.db.models import Document
+from takehome.db.models import Conversation, Document
 from takehome.db.session import get_session
 from takehome.services.conversation import (
     create_conversation,
@@ -70,7 +70,7 @@ def _documents_to_info(documents: list[Document]) -> list[DocumentInfo]:
     ]
 
 
-def _conversation_detail(conversation) -> ConversationDetail:
+def _conversation_detail(conversation: Conversation) -> ConversationDetail:
     docs = _documents_to_info(conversation.documents)
     return ConversationDetail(
         id=conversation.id,

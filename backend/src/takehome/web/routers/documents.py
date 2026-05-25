@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import FileResponse
@@ -12,15 +12,11 @@ from starlette.responses import FileResponse
 from takehome.db.session import get_session
 from takehome.services.conversation import get_conversation
 from takehome.services.document import get_document, upload_document
+from takehome.services.document_errors import DuplicateFilenameError
 
 logger = structlog.get_logger()
 
 router = APIRouter(tags=["documents"])
-
-
-# --------------------------------------------------------------------------- #
-# Schemas
-# --------------------------------------------------------------------------- #
 
 
 class DocumentOut(BaseModel):
@@ -33,11 +29,6 @@ class DocumentOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# --------------------------------------------------------------------------- #
-# Endpoints
-# --------------------------------------------------------------------------- #
-
-
 @router.post(
     "/api/conversations/{conversation_id}/documents",
     response_model=DocumentOut,
@@ -46,6 +37,7 @@ class DocumentOut(BaseModel):
 async def upload_document_endpoint(
     conversation_id: str,
     file: UploadFile,
+    filename: str | None = Form(default=None),
     session: AsyncSession = Depends(get_session),
 ) -> DocumentOut:
     """Upload a PDF document for a conversation."""
@@ -54,7 +46,19 @@ async def upload_document_endpoint(
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     try:
-        document = await upload_document(session, conversation_id, file)
+        document = await upload_document(session, conversation_id, file, filename=filename)
+    except DuplicateFilenameError as e:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "duplicate_filename",
+                "filename": e.filename,
+                "existing_document_id": e.existing_document_id,
+                "message": (
+                    f'A document named "{e.filename}" is already in this conversation.'
+                ),
+            },
+        ) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 

@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as api from "../lib/api";
+import { hasFilenameConflict } from "../lib/document-filename";
+import {
+	type DocumentNameConflict,
+	isDuplicateFilenameError,
+} from "../lib/upload-errors";
 import { normalizeUploadFiles } from "../lib/upload-files";
 import type { Document } from "../types";
 
@@ -10,6 +15,9 @@ export function useDocuments(conversationId: string | null) {
 	);
 	const [uploading, setUploading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [nameConflict, setNameConflict] = useState<DocumentNameConflict | null>(
+		null,
+	);
 	const pendingUploadsRef = useRef<File[]>([]);
 	const processingUploadsRef = useRef(false);
 
@@ -36,9 +44,39 @@ export function useDocuments(conversationId: string | null) {
 	}, [conversationId]);
 
 	useEffect(() => {
+		setNameConflict(null);
 		pendingUploadsRef.current = [];
 		refresh();
 	}, [refresh]);
+
+	const performUpload = useCallback(
+		async (
+			file: File,
+			filename?: string,
+		): Promise<Document | "conflict" | null> => {
+			if (!conversationId) return null;
+			setError(null);
+			try {
+				const doc = await api.uploadDocument(conversationId, file, filename);
+				setDocuments((prev) => [...prev, doc]);
+				setSelectedDocumentId(doc.id);
+				return doc;
+			} catch (err) {
+				if (isDuplicateFilenameError(err)) {
+					setNameConflict({
+						file,
+						conflictingFilename: err.filename,
+					});
+					return "conflict";
+				}
+				setError(
+					err instanceof Error ? err.message : "Failed to upload document",
+				);
+				return null;
+			}
+		},
+		[conversationId],
+	);
 
 	const processUploadQueue = useCallback(async () => {
 		if (processingUploadsRef.current || !conversationId) return false;
@@ -46,6 +84,7 @@ export function useDocuments(conversationId: string | null) {
 		processingUploadsRef.current = true;
 		setUploading(true);
 		let uploadedAny = false;
+		const knownFilenames = documents.map((doc) => doc.filename);
 
 		try {
 			while (pendingUploadsRef.current.length > 0) {
@@ -54,28 +93,41 @@ export function useDocuments(conversationId: string | null) {
 					pendingUploadsRef.current.shift();
 					continue;
 				}
+				const displayName = file.name.trim();
+				const queuedNames = pendingUploadsRef.current
+					.slice(1)
+					.map((queued) => queued.name);
 
-				try {
-					setError(null);
-					const doc = await api.uploadDocument(conversationId, file);
-					setDocuments((prev) => [...prev, doc]);
-					setSelectedDocumentId(doc.id);
-					pendingUploadsRef.current.shift();
-					uploadedAny = true;
-				} catch (err) {
-					setError(
-						err instanceof Error ? err.message : "Failed to upload document",
-					);
-					pendingUploadsRef.current.shift();
+				if (
+					hasFilenameConflict([...knownFilenames, ...queuedNames], displayName)
+				) {
+					setNameConflict({
+						file,
+						conflictingFilename: displayName,
+					});
+					break;
 				}
+
+				const result = await performUpload(file);
+				if (result === "conflict") break;
+				if (!result) {
+					pendingUploadsRef.current.shift();
+					continue;
+				}
+
+				pendingUploadsRef.current.shift();
+				knownFilenames.push(result.filename);
+				uploadedAny = true;
 			}
 		} finally {
 			processingUploadsRef.current = false;
-			setUploading(false);
+			if (pendingUploadsRef.current.length === 0) {
+				setUploading(false);
+			}
 		}
 
 		return uploadedAny;
-	}, [conversationId]);
+	}, [conversationId, documents, performUpload]);
 
 	const upload = useCallback(
 		async (input: File | File[]) => {
@@ -89,6 +141,40 @@ export function useDocuments(conversationId: string | null) {
 		},
 		[conversationId, processUploadQueue],
 	);
+
+	const resolveNameConflict = useCallback(
+		async (file: File, filename: string) => {
+			const trimmed = filename.trim();
+			const knownFilenames = [
+				...documents.map((doc) => doc.filename),
+				...pendingUploadsRef.current.slice(1).map((queued) => queued.name),
+			];
+
+			if (hasFilenameConflict(knownFilenames, trimmed)) {
+				setNameConflict({
+					file,
+					conflictingFilename: trimmed,
+				});
+				return null;
+			}
+
+			setNameConflict(null);
+			setUploading(true);
+			const result = await performUpload(file, trimmed);
+			if (result && result !== "conflict") {
+				pendingUploadsRef.current.shift();
+				await processUploadQueue();
+			}
+			return result && result !== "conflict" ? result : null;
+		},
+		[documents, performUpload, processUploadQueue],
+	);
+
+	const cancelNameConflict = useCallback(() => {
+		setNameConflict(null);
+		pendingUploadsRef.current.shift();
+		void processUploadQueue();
+	}, [processUploadQueue]);
 
 	const selectDocument = useCallback((id: string) => {
 		setSelectedDocumentId(id);
@@ -107,7 +193,10 @@ export function useDocuments(conversationId: string | null) {
 		selectedDocument,
 		uploading,
 		error,
+		nameConflict,
 		upload,
+		resolveNameConflict,
+		cancelNameConflict,
 		selectDocument,
 		refresh,
 	};

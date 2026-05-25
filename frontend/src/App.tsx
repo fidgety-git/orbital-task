@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { ChatSidebar } from "./components/ChatSidebar";
 import { ChatWindow } from "./components/ChatWindow";
+import { DocumentNameConflictDialog } from "./components/DocumentNameConflictDialog";
 import { DocumentViewer } from "./components/DocumentViewer";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { useConversations } from "./hooks/use-conversations";
@@ -33,6 +34,9 @@ export default function App() {
 		uploading,
 		error: documentsError,
 		upload,
+		nameConflict,
+		resolveNameConflict,
+		cancelNameConflict,
 		selectDocument,
 		refresh: refreshDocuments,
 	} = useDocuments(selectedId);
@@ -54,6 +58,17 @@ export default function App() {
 			}
 		},
 		[upload, refreshDocuments, refreshConversations],
+	);
+
+	const handleResolveNameConflict = useCallback(
+		async (file: File, filename: string) => {
+			const doc = await resolveNameConflict(file, filename);
+			if (doc) {
+				refreshDocuments();
+				refreshConversations();
+			}
+		},
+		[resolveNameConflict, refreshDocuments, refreshConversations],
 	);
 
 	const handleCreate = useCallback(async () => {
@@ -90,6 +105,13 @@ export default function App() {
 					documents={documents}
 					selectedDocument={selectedDocument}
 					onSelectDocument={selectDocument}
+				/>
+
+				<DocumentNameConflictDialog
+					conflict={nameConflict}
+					existingFilenames={documents.map((doc) => doc.filename)}
+					onCancel={cancelNameConflict}
+					onConfirm={handleResolveNameConflict}
 				/>
 			</div>
 		</TooltipProvider>
