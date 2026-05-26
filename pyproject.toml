@@ -64,3 +64,4 @@ extraPaths = ["backend/src"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["backend/tests"]
+pythonpath = ["backend/tests"]

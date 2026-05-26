@@ -64,7 +64,6 @@ We've included sample legal documents in `sample-docs/` for testing.
 - `just check` — Run all linters and type checks
 - `just fmt` — Format all code
 - `just test` — Run backend (pytest) and frontend (vitest) tests
-- `just eval-citations` — Run the citation/trust golden-set evaluation
 - `just db-init` — Run database migrations
 - `just db-shell` — Open a psql shell
 - `just shell-backend` — Shell into backend container
@@ -72,37 +71,10 @@ We've included sample legal documents in `sample-docs/` for testing.
 
 ---
 
-## Citation & trust evaluation
+## Citation & trust tests
 
-Assistant answers include inline citations and a trust banner (`high`, `partial`, `unverified`, or `not_found`). The golden-set eval checks that citation parsing, excerpt verification, and trust scoring behave correctly **without calling the LLM** — each case feeds a simulated assistant response and mock document text through the same backend pipeline used in production.
+Assistant answers include inline citations and a trust banner (`high`, `partial`, `unverified`, or `not_found`). The backend test suite includes a 22-case golden set that checks citation parsing, excerpt verification, and trust scoring **without calling the LLM** — each case feeds a simulated assistant response and mock document text through the same pipeline used in production.
 
-### Golden set
+Cases live in [`backend/tests/fixtures/citations-trust.json`](backend/tests/fixtures/citations-trust.json). They run automatically via `just test` (`backend/tests/test_citations_golden.py`).
 
-Cases live in [`evals/citations-trust.json`](evals/citations-trust.json):
-
-- **`documents`** — three mock PDFs (commercial lease, title report, environmental assessment) with page-marked extracted text
-- **`cases`** — 22 scenarios covering exact matches, fuzzy paraphrase, page fallback, multi-document answers, fabricated excerpts, missing/malformed citation blocks, and abstention phrasing
-
-Each case specifies:
-
-| Field | Purpose |
-|-------|---------|
-| `document_refs` | Which mock documents are “uploaded” for the case |
-| `response` | Simulated LLM output, including an optional `<citations>` JSON block |
-| `expected.trust_level` | Expected trust score |
-| `expected.verified_count` / `citation_count` | How many citations verify vs. total parsed |
-| `expected.citations` | Optional per-citation checks (filename, resolved page, `verified`) |
-
-### Running the eval
-
-```bash
-just eval-citations
-```
-
-This runs `backend/tests/test_citations_eval.py`, which parametrizes over every case in the golden set. **All 22 cases must pass** — failures print the mismatched field (trust level, counts, or citation details).
-
-The eval is also included when you run `just test`.
-
-### Adding cases
-
-Copy an existing entry in `evals/citations-trust.json`, give it a unique `id`, and adjust `response` / `expected`. Re-run `just eval-citations` to confirm the new case passes.
+To add a case, copy an existing entry in the JSON file, give it a unique `id`, and adjust `response` / `expected`. Re-run `just test` to confirm it passes.

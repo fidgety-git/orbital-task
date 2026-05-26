@@ -108,10 +108,6 @@ test-backend:
 test-frontend:
     docker compose exec frontend npm test
 
-# Citation/trust golden-set evaluation
-eval-citations:
-    docker compose run --rm backend uv run pytest backend/tests/test_citations_eval.py -v
-
 # =============================================================================
 # Utilities
 # =============================================================================

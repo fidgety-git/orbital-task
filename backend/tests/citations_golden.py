@@ -8,18 +8,18 @@ from typing import Any, cast
 from takehome.db.models import Document
 from takehome.services.citations import process_response_citations
 
-EVAL_PATH = Path(__file__).resolve().parents[4] / "evals" / "citations-trust.json"
+GOLDEN_PATH = Path(__file__).resolve().parent / "fixtures" / "citations-trust.json"
 
 
 @dataclass
 class DocumentStub:
     id: str
     filename: str
-    conversation_id: str = "eval-conv"
+    conversation_id: str = "golden-conv"
     extracted_text: str | None = None
 
 
-def load_eval_dataset(path: Path = EVAL_PATH) -> dict[str, Any]:
+def load_golden_dataset(path: Path = GOLDEN_PATH) -> dict[str, Any]:
     with path.open(encoding="utf-8") as handle:
         return json.load(handle)
 
@@ -44,7 +44,7 @@ def build_documents(
     return documents
 
 
-def run_eval_case(case: dict[str, Any], dataset: dict[str, Any]) -> list[str]:
+def run_golden_case(case: dict[str, Any], dataset: dict[str, Any]) -> list[str]:
     documents = build_documents(dataset, case["document_refs"])
     expected = case["expected"]
 

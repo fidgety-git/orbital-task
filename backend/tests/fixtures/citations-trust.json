@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "description": "Golden-set evaluation for citation verification and trust_level scoring. Each case supplies mock document text and a simulated LLM response (including the <citations> block). Run with: just eval-citations",
+  "description": "Golden-set test fixture for citation verification and trust_level scoring. Each case supplies mock document text and a simulated LLM response (including the <citations> block). Run with: just test",
   "trust_levels": ["high", "partial", "unverified", "not_found"],
   "documents": {
     "lease": {
