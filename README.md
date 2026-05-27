@@ -78,3 +78,9 @@ Assistant answers include inline citations and a trust banner (`high`, `partial`
 Cases live in [`backend/tests/fixtures/citations-trust.json`](backend/tests/fixtures/citations-trust.json). They run automatically via `just test` (`backend/tests/test_citations_golden.py`).
 
 To add a case, copy an existing entry in the JSON file, give it a unique `id`, and adjust `response` / `expected`. Re-run `just test` to confirm it passes.
+
+---
+
+## Demo
+
+A brief demonstration of the application in its current state can be found in [this Loom video](https://www.loom.com/share/e746a83db25f4433bacc49e46a21bdb4).
